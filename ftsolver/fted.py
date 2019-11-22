@@ -97,6 +97,7 @@ def rdm12s_fted(h1e,g2e,norb,nelec,beta,mu=0.0,symm='UHF',bmax=1e3, \
         E = E.real
         RDM1 = RDM1.real
         RDM2 = RDM2.real
+    # RDM2 order: aaaa, aabb, bbbb
     return RDM1, RDM2, E
 
 
