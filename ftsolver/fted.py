@@ -100,19 +100,170 @@ def rdm12s_fted(h1e,g2e,norb,nelec,beta,mu=0.0,symm='UHF',bmax=1e3, \
     # RDM2 order: aaaa, aabb, bbbb
     return RDM1, RDM2, E
 
+def energy(h1e,g2e,norb,nelec,beta,mu=0.0,symm='UHF',bmax=1e3, \
+                dcompl=False,**kwargs):
 
-######################################################################
-#def solve_spectrum(h1e,h2e,norb,fcisolver):
-#    EW = np.empty((norb+1,norb+1), dtype=object)
-#    EV = np.empty((norb+1,norb+1), dtype=object)
-#    for na in range(0, norb+1):
-#        for nb in range(0, norb+1):
-#            ew, ev = diagH(h1e,h2e,norb,(na,nb),fcisolver)
-#            EW[na, nb] = ew
-#            EV[na, nb] = ev
-#    return EW, EV
+    if symm is 'RHF':
+        from pyscf.fci import direct_spin1 as fcisolver
+    elif symm is 'SOC':
+        from pyscf.fci import fci_slow_spinless as fcisolver
+        dcompl=True
+    elif symm is 'UHF':
+        from pyscf.fci import direct_uhf as fcisolver
+    else:
+        from pyscf.fci import direct_spin1 as fcisolver
+    
+    Z = 0.
+    E = 0.
 
-######################################################################
+    if np.linalg.norm(g2e[1]) == 0:
+        _, E = FD(h1e,norb,nelec,beta,mu,symm)
+        return E
+
+    if symm != 'UHF' and isinstance(h1e, tuple):
+        h1e = h1e[0]
+        g2e = g2e[1]
+
+    if beta>bmax:
+        e, v = fcisolver.kernel(h1e, g2e, norb, nelec)
+        return e
+
+    # check for overflow
+    e0, _ = fcisolver.kernel(h1e,g2e,norb,norb)
+    exp_max = (-e0+mu*norb)*beta
+    if(exp_max > 700):
+        exp_shift = exp_max - 500
+    else:
+        exp_shift = 0
+
+    # Calculating E, RDM1, Z
+    N = 0
+    for na in range(0,norb+1):
+        for nb in range(0,norb+1):
+            ne = na + nb
+            ew, ev = diagH(h1e,g2e,norb,(na,nb),fcisolver)
+            exp_ = (-ew+mu*(na+nb))*beta
+            exp_ -= exp_shift
+            ndim = len(ew) 
+            Z += np.sum(np.exp(exp_))
+            E += np.sum(np.exp(exp_)*ew)
+            N += ne * np.sum(np.exp(exp_))
+         
+    E    /= Z
+    N    /= Z
+
+    if not dcompl:
+        E = E.real
+
+    return E
+
+def elec_number(mu,h1e,g2e,norb,beta,symm='UHF',bmax=1e3, \
+                dcompl=False,**kwargs):
+    '''
+        return:
+                electron number in form of (Na, Nb)
+                gradient wrt mu (dNa/dmu, dNb/dmu)
+    '''
+    if symm is 'RHF':
+        from pyscf.fci import direct_spin1 as fcisolver
+    elif symm is 'SOC':
+        from pyscf.fci import fci_slow_spinless as fcisolver
+        dcompl=True
+    elif symm is 'UHF':
+        from pyscf.fci import direct_uhf as fcisolver
+    else:
+        from pyscf.fci import direct_spin1 as fcisolver 
+
+    Z = 0. 
+    Na = 0
+    Nb = 0
+    Ncorr_a = 0
+    Ncorr_b = 0
+    if symm != 'UHF' and isinstance(h1e, tuple):
+        h1e = h1e[0]
+        g2e = g2e[1]
+
+    # check for overflow
+    e0, _ = fcisolver.kernel(h1e,g2e,norb,norb)
+    exp_max = (-e0+mu*norb)*beta
+    if(exp_max > 700):
+        exp_shift = exp_max - 500
+    else:
+        exp_shift = 0
+
+
+    for na in range(0,norb+1):
+        for nb in range(0,norb+1):
+            ne = na + nb
+            ew, ev = diagH(h1e,g2e,norb,(na,nb),fcisolver)
+            exp_ = (-ew+mu*(na+nb))*beta
+            exp_ -= exp_shift
+            ndim = len(ew)
+            Z += np.sum(np.exp(exp_))
+            Na += na * np.sum(np.exp(exp_))
+            Nb += nb * np.sum(np.exp(exp_))
+            Ncorr_a += (na*ne) * np.sum(np.exp(exp_))
+            Ncorr_b += (nb*ne) * np.sum(np.exp(exp_))
+        
+
+    Na    /= Z 
+    Nb    /= Z 
+    Ncorr_a /= Z
+    Ncorr_b /= Z
+
+    N = Na + Nb
+    
+    grad_a = beta * (Ncorr_a - Na*N)
+    grad_b = beta * (Ncorr_b - Nb*N)
+
+    return (Na, Nb), (grad_a, grad_b)
+
+def solve_mu(h1e,g2e,norb,nelec,beta,mu0=0.0,symm='UHF',bmax=1e3, \
+                dcompl=False,**kwargs):
+
+    '''
+    fit mu to match the given electon number.
+    using: CG
+    '''
+    fun_dict = {}
+    jac_dict = {}
+    
+    def func(x):
+        print fun_dict
+        mu = x[0]
+        if mu in fun_dict:
+            return fun_dict[mu]
+        else:
+            Ne, grad = elec_number(mu,h1e,g2e,norb,beta,symm)
+            da = Ne[0] - nelec[0]
+            db = Ne[1] - nelec[1]
+            diff = da**2 + db**2
+            jac = 2 * da * grad[0] + 2 * db * grad[1]
+            
+            jac_dict[mu] = jac
+            fun_dict[mu] = diff
+            return diff
+
+    def grad(x):
+        mu = x[0]
+        if mu in jac_dict:
+            return jac_dict[mu]
+        else:
+            Ne, grad = elec_number(mu,h1e,g2e,norb,beta,symm)
+            da = Ne[0] - nelec[0]
+            db = Ne[1] - nelec[1]
+            diff = da**2 + db**2
+            jac = 2 * da * grad[0] + 2 * db * grad[1]
+            
+            jac_dict[mu] = jac
+            fun_dict[mu] = diff
+            return jac
+
+    res = minimize(func, mu0, method="CG", jac=grad, \
+                   options={'disp':True, 'gtol':1e-4, 'maxiter':10})
+
+    return res.x
+
 def diagH(h1e,g2e,norb,nelec,fcisolver):
     '''
         exactly diagonalize the hamiltonian.
