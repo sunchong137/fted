@@ -1,8 +1,6 @@
 '''
-exact diagonalization solver with grand canonical statistics.
-Chong Sun 08/07/17
-taking temperature (T) and chemical potential (mu) as input
-Chong Sun 01/16/18
+Exact diagonalization at finite temperature (FTED).
+Spin symmetry restricted: alpha = beta
 '''
 
 import numpy as np
@@ -13,44 +11,30 @@ from pyscf import scf
 from pyscf import ao2mo
 from pyscf import fci
 from pyscf.fci import cistring
-from pyscf.fci import direct_uhf
+from pyscf.fci import direct_spin1 as fcisolver
 from scipy.optimize import minimize
 import datetime
 import scipy
 import sys
 import os
 
-def rdm12s_fted(h1e,g2e,norb,nelec,beta,mu=0.0,symm='UHF',bmax=1e3, \
+def rdm12s_fted(h1e,g2e,norb,nelec,beta,mu=0.0,bmax=1e3, \
                 dcompl=False,**kwargs):
 
     '''
     Return the expectation values of energy, RDM1 and RDM2 at temperature T.
     '''
-
-    if symm is 'RHF':
-        from pyscf.fci import direct_spin1 as fcisolver
-    elif symm is 'SOC':
-        from pyscf.fci import fci_slow_spinless as fcisolver
-        dcompl=True
-    elif symm is 'UHF':
-        from pyscf.fci import direct_uhf as fcisolver
-    else:
-        from pyscf.fci import direct_spin1 as fcisolver
     
+    # make sure the Hamiltonians have the correct shape
+#    if (type(h1e) is tuple) or (type(h1e) is list):
+#        h1e = h1e[0]
+#        g2e = g2e[0]
 
     Z = 0.
     E = 0.
-    RDM1=np.zeros((2, norb, norb), dtype=np.complex128)
-    RDM2=np.zeros((3, norb, norb, norb, norb), dtype=np.complex128)
-
-    # non-interacting case
-    if np.linalg.norm(g2e[1]) == 0:
-        RDM1, E = FD(h1e,norb,nelec,beta,mu,symm)
-        return RDM1, RDM2, E
-
-    if symm != 'UHF' and isinstance(h1e, tuple):
-        h1e = h1e[0]
-        g2e = g2e[1]
+    RDM1   = np.zeros((norb, norb))
+    RDM2_0 = np.zeros((norb, norb, norb, norb))
+    RDM2_1 = np.zeros((norb, norb, norb, norb))
 
     if beta>bmax:
         e, v = fcisolver.kernel(h1e, g2e, norb, nelec)
@@ -67,62 +51,57 @@ def rdm12s_fted(h1e,g2e,norb,nelec,beta,mu=0.0,symm='UHF',bmax=1e3, \
 
     # Calculating E, RDM1, Z
     N = 0
-    for na in range(0,norb+1):
-        for nb in range(0,norb+1):
+    # na =/= nb
+    for na in range(0, norb+1):
+        for nb in range(na+1, norb+1):
             ne = na + nb
             ew, ev = diagH(h1e,g2e,norb,(na,nb),fcisolver)
             exp_ = (-ew+mu*(na+nb))*beta
             exp_ -= exp_shift
             ndim = len(ew) 
-            Z += np.sum(np.exp(exp_))
-            E += np.sum(np.exp(exp_)*ew)
-            N += ne * np.sum(np.exp(exp_))
+            Z += np.sum(np.exp(exp_)) *2 
+            E += np.sum(np.exp(exp_)*ew) * 2
+            N += ne * np.sum(np.exp(exp_)) * 2
          
             for i in range(ndim):
                 dm1, dm2 = fcisolver.make_rdm12s(ev[:,i].copy(),norb,(na,nb))
-                dm1 = np.asarray(dm1,dtype=np.complex128)
-                dm2 = np.asarray(dm2,dtype=np.complex128)
-                RDM1 += dm1*np.exp(exp_[i])
-                RDM2 += dm2*np.exp(exp_[i])
+                RDM1   += (dm1[0] + dm1[1])*np.exp(exp_[i])
+                RDM2_0 += (dm2[0] + dm2[2])*np.exp(exp_[i])
+                RDM2_1 += (dm2[1] + np.transpose(dm2[1], (2,3,0,1)))*np.exp(exp_[i])
+
+    for na in range(0, norb+1):
+        nb =  na
+        ne = na + nb
+        ew, ev = diagH(h1e,g2e,norb,(na,nb),fcisolver)
+        exp_ = (-ew+mu*(na+nb))*beta
+        exp_ -= exp_shift
+        ndim = len(ew) 
+        Z += np.sum(np.exp(exp_))
+        E += np.sum(np.exp(exp_)*ew) 
+        N += ne * np.sum(np.exp(exp_)) 
+     
+        for i in range(ndim):
+            dm1, dm2 = fcisolver.make_rdm12s(ev[:,i].copy(),norb,(na,nb))
+            RDM1    += dm1[0]*np.exp(exp_[i]) 
+            RDM2_0  += dm2[0]*np.exp(exp_[i]) 
+            RDM2_1  += dm2[1]*np.exp(exp_[i])
 
     E    /= Z
     N    /= Z
     RDM1 /= Z
-    RDM2 /= Z
+    RDM2_0 /= Z
+    RDM2_1 /= Z
 
-    #print "%.6f        %.6f"%(1./T, N.real)
-    #print "The number of electrons in embedding space: ", N.real
+    RDM1 = np.asarray([RDM1, RDM1])
+    RDM2 = np.asarray([RDM2_0, RDM2_1, RDM2_0])
 
-    if not dcompl:
-        E = E.real
-        RDM1 = RDM1.real
-        RDM2 = RDM2.real
     # RDM2 order: aaaa, aabb, bbbb
     return RDM1, RDM2, E
 
-def energy(h1e,g2e,norb,nelec,beta,mu=0.0,symm='UHF',bmax=1e3, \
+def energy(h1e,g2e,norb,nelec,beta,mu=0.0,bmax=1e3, \
                 dcompl=False,**kwargs):
 
-    if symm is 'RHF':
-        from pyscf.fci import direct_spin1 as fcisolver
-    elif symm is 'SOC':
-        from pyscf.fci import fci_slow_spinless as fcisolver
-        dcompl=True
-    elif symm is 'UHF':
-        from pyscf.fci import direct_uhf as fcisolver
-    else:
-        from pyscf.fci import direct_spin1 as fcisolver
     
-    Z = 0.
-    E = 0.
-
-    if np.linalg.norm(g2e[1]) == 0:
-        _, E = FD(h1e,norb,nelec,beta,mu,symm)
-        return E
-
-    if symm != 'UHF' and isinstance(h1e, tuple):
-        h1e = h1e[0]
-        g2e = g2e[1]
 
     if beta>bmax:
         e, v = fcisolver.kernel(h1e, g2e, norb, nelec)
@@ -136,52 +115,47 @@ def energy(h1e,g2e,norb,nelec,beta,mu=0.0,symm='UHF',bmax=1e3, \
     else:
         exp_shift = 0
 
-    # Calculating E, RDM1, Z
-    N = 0
-    for na in range(0,norb+1):
-        for nb in range(0,norb+1):
+    # Calculating E, Z
+    # na =/= nb
+    Z = 0.
+    E = 0.
+    for na in range(0, norb+1):
+        for nb in range(na+1, norb+1):
             ne = na + nb
             ew, ev = diagH(h1e,g2e,norb,(na,nb),fcisolver)
             exp_ = (-ew+mu*(na+nb))*beta
             exp_ -= exp_shift
             ndim = len(ew) 
-            Z += np.sum(np.exp(exp_))
-            E += np.sum(np.exp(exp_)*ew)
-            N += ne * np.sum(np.exp(exp_))
+            Z += np.sum(np.exp(exp_)) *2 
+            E += np.sum(np.exp(exp_)*ew) * 2
          
-    E    /= Z
-    N    /= Z
 
-    if not dcompl:
-        E = E.real
+    for na in range(0, norb+1):
+        nb =  na
+        ne = na + nb
+        ew, ev = diagH(h1e,g2e,norb,(na,nb),fcisolver)
+        exp_ = (-ew+mu*(na+nb))*beta
+        exp_ -= exp_shift
+        ndim = len(ew) 
+        Z += np.sum(np.exp(exp_))
+        E += np.sum(np.exp(exp_)*ew) 
+     
+
+    E    /= Z
 
     return E
 
-def elec_number(mu,h1e,g2e,norb,beta,symm='UHF',bmax=1e3, \
+def elec_number(mu,h1e,g2e,norb,beta,bmax=1e3, \
                 dcompl=False,**kwargs):
     '''
         return:
-                electron number in form of (Na, Nb)
-                gradient wrt mu (dNa/dmu, dNb/dmu)
+                electron number in form of Na ( = Nb)
+                gradient wrt mu dNa/dmu ( = dNb/dmu)
     '''
-    if symm is 'RHF':
-        from pyscf.fci import direct_spin1 as fcisolver
-    elif symm is 'SOC':
-        from pyscf.fci import fci_slow_spinless as fcisolver
-        dcompl=True
-    elif symm is 'UHF':
-        from pyscf.fci import direct_uhf as fcisolver
-    else:
-        from pyscf.fci import direct_spin1 as fcisolver 
 
     Z = 0. 
     Na = 0
-    Nb = 0
     Ncorr_a = 0
-    Ncorr_b = 0
-    if symm != 'UHF' and isinstance(h1e, tuple):
-        h1e = h1e[0]
-        g2e = g2e[1]
 
     # check for overflow
     e0, _ = fcisolver.kernel(h1e,g2e,norb,norb)
@@ -193,32 +167,38 @@ def elec_number(mu,h1e,g2e,norb,beta,symm='UHF',bmax=1e3, \
 
 
     for na in range(0,norb+1):
-        for nb in range(0,norb+1):
+        for nb in range(na+1,norb+1):
             ne = na + nb
             ew, ev = diagH(h1e,g2e,norb,(na,nb),fcisolver)
             exp_ = (-ew+mu*(na+nb))*beta
             exp_ -= exp_shift
             ndim = len(ew)
-            Z += np.sum(np.exp(exp_))
-            Na += na * np.sum(np.exp(exp_))
-            Nb += nb * np.sum(np.exp(exp_))
-            Ncorr_a += (na*ne) * np.sum(np.exp(exp_))
-            Ncorr_b += (nb*ne) * np.sum(np.exp(exp_))
+            Z += np.sum(np.exp(exp_)) * 2
+            Na += ne * np.sum(np.exp(exp_))
+            Ncorr_a += (ne*ne) * np.sum(np.exp(exp_)) 
+
+    for na in range(0,norb+1):
+        nb = na
+        ne = na + nb
+        ew, ev = diagH(h1e,g2e,norb,(na,nb),fcisolver)
+        exp_ = (-ew+mu*(na+nb))*beta
+        exp_ -= exp_shift
+        ndim = len(ew)
+        Z += np.sum(np.exp(exp_))
+        Na += na * np.sum(np.exp(exp_)) 
+        Ncorr_a += (na*ne) * np.sum(np.exp(exp_))
         
 
     Na    /= Z 
-    Nb    /= Z 
     Ncorr_a /= Z
-    Ncorr_b /= Z
 
-    N = Na + Nb
+    N = Na * 2
     
     grad_a = beta * (Ncorr_a - Na*N)
-    grad_b = beta * (Ncorr_b - Nb*N)
 
-    return (Na, Nb), (grad_a, grad_b)
+    return Na, grad_a
 
-def solve_mu(h1e,g2e,norb,nelec,beta,mu0=0.0,symm='UHF',bmax=1e3, \
+def solve_mu(h1e,g2e,norb,nelec,beta,mu0=0.0,bmax=1e3, \
                 dcompl=False,**kwargs):
 
     '''
@@ -228,16 +208,20 @@ def solve_mu(h1e,g2e,norb,nelec,beta,mu0=0.0,symm='UHF',bmax=1e3, \
     fun_dict = {}
     jac_dict = {}
     
+    if (len(nelec) == 2):
+        nelec = nelec[0]
+    else:
+        nelec = nelec//2
+    
     def func(x):
         mu = x[0]
         if mu in fun_dict:
             return fun_dict[mu]
         else:
-            Ne, grad = elec_number(mu,h1e,g2e,norb,beta,symm)
-            da = Ne[0] - nelec[0]
-            db = Ne[1] - nelec[1]
-            diff = da**2 + db**2
-            jac = 2 * da * grad[0] + 2 * db * grad[1]
+            Ne, grad = elec_number(mu,h1e,g2e,norb,beta)
+            de = Ne - nelec
+            diff = de**2
+            jac = 2 * de * grad
             
             jac_dict[mu] = jac
             fun_dict[mu] = diff
@@ -248,11 +232,10 @@ def solve_mu(h1e,g2e,norb,nelec,beta,mu0=0.0,symm='UHF',bmax=1e3, \
         if mu in jac_dict:
             return jac_dict[mu]
         else:
-            Ne, grad = elec_number(mu,h1e,g2e,norb,beta,symm)
-            da = Ne[0] - nelec[0]
-            db = Ne[1] - nelec[1]
-            diff = da**2 + db**2
-            jac = 2 * da * grad[0] + 2 * db * grad[1]
+            Ne, grad = elec_number(mu,h1e,g2e,norb,beta)
+            de = Ne - nelec
+            diff = de**2
+            jac = 2 * de * grad
             
             jac_dict[mu] = jac
             fun_dict[mu] = diff
