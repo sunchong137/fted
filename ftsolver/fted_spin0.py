@@ -30,6 +30,7 @@ def rdm12s_fted(h1e,g2e,norb,nelec,beta,mu=0.0,bmax=1e3, \
 #        h1e = h1e[0]
 #        g2e = g2e[0]
 
+
     Z = 0.
     E = 0.
     RDM1   = np.zeros((norb, norb))
@@ -205,6 +206,10 @@ def solve_mu(h1e,g2e,norb,nelec,beta,mu0=0.0,bmax=1e3, \
     fit mu to match the given electon number.
     using: CG
     '''
+    if beta > bmax:
+        print("No need to fit mu for zero temperature!")
+        return mu0
+
     fun_dict = {}
     jac_dict = {}
     
