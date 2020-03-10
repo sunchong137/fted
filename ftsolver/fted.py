@@ -234,6 +234,9 @@ def solve_mu(h1e,g2e,norb,nelec,beta,mu0=0.0,symm='UHF',bmax=1e3, \
     if (symm == 'RHF'):
         return spin0.solve_mu(h1e,g2e,norb,nelec,beta,mu0,bmax)
 
+    if beta > bmax:
+        return mu0
+
     fun_dict = {}
     jac_dict = {}
     
