@@ -20,6 +20,8 @@ import scipy
 import sys
 import os
 
+import fted_spin0 as spin0
+
 def rdm12s_fted(h1e,g2e,norb,nelec,beta,mu=0.0,symm='UHF',bmax=1e3, \
                 dcompl=False,**kwargs):
 
@@ -28,7 +30,8 @@ def rdm12s_fted(h1e,g2e,norb,nelec,beta,mu=0.0,symm='UHF',bmax=1e3, \
     '''
 
     if symm is 'RHF':
-        from pyscf.fci import direct_spin1 as fcisolver
+        return spin0.rdm12s_fted(h1e,g2e,norb,nelec,beta,mu,bmax)
+        #from pyscf.fci import direct_spin1 as fcisolver
     elif symm is 'SOC':
         from pyscf.fci import fci_slow_spinless as fcisolver
         dcompl=True
@@ -104,7 +107,8 @@ def energy(h1e,g2e,norb,nelec,beta,mu=0.0,symm='UHF',bmax=1e3, \
                 dcompl=False,**kwargs):
 
     if symm is 'RHF':
-        from pyscf.fci import direct_spin1 as fcisolver
+        return spin0.energy(h1e,g2e,norb,nelec,beta,mu,bmax)
+        #from pyscf.fci import direct_spin1 as fcisolver
     elif symm is 'SOC':
         from pyscf.fci import fci_slow_spinless as fcisolver
         dcompl=True
@@ -165,7 +169,8 @@ def elec_number(mu,h1e,g2e,norb,beta,symm='UHF',bmax=1e3, \
                 gradient wrt mu (dNa/dmu, dNb/dmu)
     '''
     if symm is 'RHF':
-        from pyscf.fci import direct_spin1 as fcisolver
+        return spin0.elec_number(mu,h1e,g2e,norb,beta,bmax)
+        #from pyscf.fci import direct_spin1 as fcisolver
     elif symm is 'SOC':
         from pyscf.fci import fci_slow_spinless as fcisolver
         dcompl=True
@@ -225,6 +230,10 @@ def solve_mu(h1e,g2e,norb,nelec,beta,mu0=0.0,symm='UHF',bmax=1e3, \
     fit mu to match the given electon number.
     using: CG
     '''
+
+    if (symm == 'RHF'):
+        return spin0.solve_mu(h1e,g2e,norb,nelec,beta,mu0,bmax)
+
     fun_dict = {}
     jac_dict = {}
     
