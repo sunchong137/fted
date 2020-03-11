@@ -250,6 +250,8 @@ def solve_mu(h1e,g2e,norb,nelec,beta,mu0=0.0,bmax=1e3, \
 
     res = minimize(func, mu0, method="CG", jac=grad, \
                    options={'disp':True, 'gtol':1e-4, 'maxiter':10})
+    mu_n = res.x[0]
+    print("Converged mu for ED solver: mu(ED) = %10.12f"%mu_n)
 
     return res.x[0]
 

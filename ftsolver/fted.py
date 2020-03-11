@@ -94,7 +94,7 @@ def rdm12s_fted(h1e,g2e,norb,nelec,beta,mu=0.0,symm='UHF',bmax=1e3, \
     RDM2 /= Z
 
     #print "%.6f        %.6f"%(1./T, N.real)
-    #print "The number of electrons in embedding space: ", N.real
+    print("The number of electrons in embedding space: ", N.real)
 
     if not dcompl:
         E = E.real
@@ -272,6 +272,9 @@ def solve_mu(h1e,g2e,norb,nelec,beta,mu0=0.0,symm='UHF',bmax=1e3, \
 
     res = minimize(func, mu0, method="CG", jac=grad, \
                    options={'disp':True, 'gtol':1e-4, 'maxiter':10})
+
+    mu_n = res.x[0]
+    print("Converged mu for ED solver: mu(ED) = %10.12f"%mu_n)
 
     return res.x[0]
 
