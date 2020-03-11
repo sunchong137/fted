@@ -93,6 +93,8 @@ def rdm12s_fted(h1e,g2e,norb,nelec,beta,mu=0.0,bmax=1e3, \
     RDM2_0 /= Z
     RDM2_1 /= Z
 
+    print("The expectation of electron number: %10.12f"%N)
+
     RDM1 = np.asarray([RDM1, RDM1])
     RDM2 = np.asarray([RDM2_0, RDM2_1, RDM2_0])
 
