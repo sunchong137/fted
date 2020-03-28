@@ -13,6 +13,7 @@ from pyscf import fci
 from pyscf.fci import cistring
 from pyscf.fci import direct_spin1 as fcisolver
 from scipy.optimize import minimize
+from utils import logger as log
 import datetime
 import scipy
 import sys
@@ -93,7 +94,8 @@ def rdm12s_fted(h1e,g2e,norb,nelec,beta,mu=0.0,bmax=1e3, \
     RDM2_0 /= Z
     RDM2_1 /= Z
 
-    print("The expectation of electron number: %10.12f"%N)
+    log.result("The expectation of electron number:" ) 
+    log.result("N(total) = %10.10f"%N)
 
     RDM1 = np.asarray([RDM1, RDM1])
     RDM2 = np.asarray([RDM2_0, RDM2_1, RDM2_0])
@@ -249,7 +251,7 @@ def solve_mu(h1e,g2e,norb,nelec,beta,mu0=0.0,bmax=1e3, \
             return jac
 
     res = minimize(func, mu0, method="CG", jac=grad, \
-                   options={'disp':True, 'gtol':1e-4, 'maxiter':10})
+                   options={'disp':True, 'gtol':1e-6, 'maxiter':10})
     mu_n = res.x[0]
     print("Converged mu for ED solver: mu(ED) = %10.12f"%mu_n)
 

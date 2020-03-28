@@ -15,6 +15,8 @@ from pyscf import fci
 from pyscf.fci import cistring
 from pyscf.fci import direct_uhf
 from scipy.optimize import minimize
+from utils import logger as log
+
 import datetime
 import scipy
 import sys
@@ -60,6 +62,7 @@ def rdm12s_fted(h1e,g2e,norb,nelec,beta,mu=0.0,symm='UHF',bmax=1e3, \
         RDM1, RDM2 = fcisolver.make_rdm12s(v,norb,nelec)
         return np.asarray(RDM1), np.asarray(RDM2), e
 
+
     # check for overflow
     e0, _ = fcisolver.kernel(h1e,g2e,norb,norb)
     exp_max = (-e0+mu*norb)*beta
@@ -69,7 +72,8 @@ def rdm12s_fted(h1e,g2e,norb,nelec,beta,mu=0.0,symm='UHF',bmax=1e3, \
         exp_shift = 0
 
     # Calculating E, RDM1, Z
-    N = 0
+    Na = 0
+    Nb = 0
     for na in range(0,norb+1):
         for nb in range(0,norb+1):
             ne = na + nb
@@ -79,7 +83,8 @@ def rdm12s_fted(h1e,g2e,norb,nelec,beta,mu=0.0,symm='UHF',bmax=1e3, \
             ndim = len(ew) 
             Z += np.sum(np.exp(exp_))
             E += np.sum(np.exp(exp_)*ew)
-            N += ne * np.sum(np.exp(exp_))
+            Na += na * np.sum(np.exp(exp_))
+            Nb += nb * np.sum(np.exp(exp_))
          
             for i in range(ndim):
                 dm1, dm2 = fcisolver.make_rdm12s(ev[:,i].copy(),norb,(na,nb))
@@ -89,12 +94,15 @@ def rdm12s_fted(h1e,g2e,norb,nelec,beta,mu=0.0,symm='UHF',bmax=1e3, \
                 RDM2 += dm2*np.exp(exp_[i])
 
     E    /= Z
-    N    /= Z
+    Na    /= Z
+    Nb    /= Z
     RDM1 /= Z
     RDM2 /= Z
 
     #print "%.6f        %.6f"%(1./T, N.real)
-    print("The number of electrons in embedding space: ", N.real)
+    log.result("The number of electrons in embedding space: " )
+    log.result("N(alpha) = %10.10f"%Na)
+    log.result("N(beta)  = %10.10f"%Nb)
 
     if not dcompl:
         E = E.real
