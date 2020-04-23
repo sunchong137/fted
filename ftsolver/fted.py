@@ -15,14 +15,14 @@ from pyscf import fci
 from pyscf.fci import cistring
 from pyscf.fci import direct_uhf
 from scipy.optimize import minimize
-from utils import logger as log
+from ftsolver.utils import logger as log
 
 import datetime
 import scipy
 import sys
 import os
 
-import fted_spin0 as spin0
+from ftsolver import fted_spin0 as spin0
 
 def rdm12s_fted(h1e,g2e,norb,nelec,beta,mu=0.0,symm='UHF',bmax=1e3, \
                 dcompl=False,**kwargs):
@@ -365,4 +365,4 @@ if __name__ == '__main__':
 
     T = 0.01
     dm1,_,e1 = rdm12s_fted((h1e,h1e),(g2e*0, g2e, g2e*0),norb,nelec,T,mu, symm='UHF')
-    print e1/norb#+u/2.
+    print(e1/norb)#+u/2.)

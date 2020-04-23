@@ -13,4 +13,11 @@ Chong Sun <chongs0419@gmail.com>
 Dependency
 ----------
 
-*[pyscf] (https://github.com/pyscf/pyscf)
+*[pyscf] (https://github.com/pyscf/pyscf) 
+*[python3]
+
+
+Set up
+------
+Add the path to README to your $PYTHONPATH. 
+
