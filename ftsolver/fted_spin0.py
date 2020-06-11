@@ -99,6 +99,7 @@ def rdm12s_fted(h1e,g2e,norb,nelec,beta,mu=0.0,bmax=1e3, \
 
     RDM1 = np.asarray([RDM1, RDM1])
     RDM2 = np.asarray([RDM2_0, RDM2_1, RDM2_0])
+    log.result("FTED energy: %10.12f"%E)
 
     # RDM2 order: aaaa, aabb, bbbb
     return RDM1, RDM2, E
