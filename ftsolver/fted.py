@@ -36,8 +36,8 @@ import os
 
 from ftsolver import fted_spin0 as spin0
 
-def rdm12s_fted(h1e,g2e,norb,nelec,beta,mu=0.0,symm='UHF',bmax=1e3, \
-                dcompl=False,**kwargs):
+def rdm12s_fted(h1e, g2e, norb, nelec, beta, mu=0.0, symm='UHF', bmax=1e3, \
+                dcompl=False, **kwargs):
 
     '''
     Return the expectation values of energy, RDM1 and RDM2 at temperature T.
@@ -57,8 +57,8 @@ def rdm12s_fted(h1e,g2e,norb,nelec,beta,mu=0.0,symm='UHF',bmax=1e3, \
 
     Z = 0.
     E = 0.
-    RDM1=np.zeros((2, norb, norb), dtype=np.complex128)
-    RDM2=np.zeros((3, norb, norb, norb, norb), dtype=np.complex128)
+    RDM1 = np.zeros((2, norb, norb), dtype=np.complex128)
+    RDM2 = np.zeros((3, norb, norb, norb, norb), dtype=np.complex128)
 
     # non-interacting case
     if np.linalg.norm(g2e[1]) == 0:
@@ -69,7 +69,7 @@ def rdm12s_fted(h1e,g2e,norb,nelec,beta,mu=0.0,symm='UHF',bmax=1e3, \
         h1e = h1e[0]
         g2e = g2e[1]
 
-    if beta>bmax:
+    if beta > bmax:
         e, v = fcisolver.kernel(h1e, g2e, norb, nelec)
         RDM1, RDM2 = fcisolver.make_rdm12s(v,norb,nelec)
         return np.asarray(RDM1), np.asarray(RDM2), e
@@ -88,7 +88,7 @@ def rdm12s_fted(h1e,g2e,norb,nelec,beta,mu=0.0,symm='UHF',bmax=1e3, \
     Nb = 0
     for na in range(0,norb+1):
         for nb in range(0,norb+1):
-            ne = na + nb
+            # ne = na + nb
             ew, ev = diagH(h1e,g2e,norb,(na,nb),fcisolver)
             exp_ = (-ew+mu*(na+nb))*beta
             exp_ -= exp_shift
@@ -105,9 +105,9 @@ def rdm12s_fted(h1e,g2e,norb,nelec,beta,mu=0.0,symm='UHF',bmax=1e3, \
                 RDM1 += dm1*np.exp(exp_[i])
                 RDM2 += dm2*np.exp(exp_[i])
 
-    E    /= Z
-    Na    /= Z
-    Nb    /= Z
+    E /= Z
+    Na /= Z
+    Nb /= Z
     RDM1 /= Z
     RDM2 /= Z
 
@@ -124,7 +124,7 @@ def rdm12s_fted(h1e,g2e,norb,nelec,beta,mu=0.0,symm='UHF',bmax=1e3, \
     log.result("FTED energy: %10.12f"%E)
     return RDM1, RDM2, E
 
-def energy(h1e,g2e,norb,nelec,beta,mu=0.0,symm='UHF',bmax=1e3, \
+def energy(h1e, g2e, norb, nelec, beta, mu=0.0, symm='UHF', bmax=1e3, \
                 dcompl=False,**kwargs):
 
     if symm is 'RHF':
@@ -149,8 +149,8 @@ def energy(h1e,g2e,norb,nelec,beta,mu=0.0,symm='UHF',bmax=1e3, \
         h1e = h1e[0]
         g2e = g2e[1]
 
-    if beta>bmax:
-        e, v = fcisolver.kernel(h1e, g2e, norb, nelec)
+    if beta > bmax:
+        e, _ = fcisolver.kernel(h1e, g2e, norb, nelec)
         return e
 
     # check for overflow
@@ -166,24 +166,24 @@ def energy(h1e,g2e,norb,nelec,beta,mu=0.0,symm='UHF',bmax=1e3, \
     for na in range(0,norb+1):
         for nb in range(0,norb+1):
             ne = na + nb
-            ew, ev = diagH(h1e,g2e,norb,(na,nb),fcisolver)
+            ew, _ = diagH(h1e,g2e,norb,(na,nb),fcisolver)
             exp_ = (-ew+mu*(na+nb))*beta
             exp_ -= exp_shift
-            ndim = len(ew) 
+            # ndim = len(ew) 
             Z += np.sum(np.exp(exp_))
             E += np.sum(np.exp(exp_)*ew)
             N += ne * np.sum(np.exp(exp_))
          
-    E    /= Z
-    N    /= Z
+    E /= Z
+    N /= Z
 
     if not dcompl:
         E = E.real
-
     return E
 
-def elec_number(mu,h1e,g2e,norb,beta,symm='UHF',bmax=1e3, \
-                dcompl=False,**kwargs):
+
+def elec_number(mu, h1e, g2e, norb, beta, symm='UHF', bmax=1e3, \
+                dcompl=False, **kwargs):
     '''
         return:
                 electron number in form of (Na, Nb)
@@ -217,14 +217,13 @@ def elec_number(mu,h1e,g2e,norb,beta,symm='UHF',bmax=1e3, \
     else:
         exp_shift = 0
 
-
     for na in range(0,norb+1):
         for nb in range(0,norb+1):
             ne = na + nb
             ew, ev = diagH(h1e,g2e,norb,(na,nb),fcisolver)
             exp_ = (-ew+mu*(na+nb))*beta
             exp_ -= exp_shift
-            ndim = len(ew)
+            # ndim = len(ew)
             Z += np.sum(np.exp(exp_))
             Na += na * np.sum(np.exp(exp_))
             Nb += nb * np.sum(np.exp(exp_))
@@ -232,8 +231,8 @@ def elec_number(mu,h1e,g2e,norb,beta,symm='UHF',bmax=1e3, \
             Ncorr_b += (nb*ne) * np.sum(np.exp(exp_))
         
 
-    Na    /= Z 
-    Nb    /= Z 
+    Na /= Z 
+    Nb /= Z 
     Ncorr_a /= Z
     Ncorr_b /= Z
 
@@ -244,7 +243,7 @@ def elec_number(mu,h1e,g2e,norb,beta,symm='UHF',bmax=1e3, \
 
     return (Na, Nb), (grad_a, grad_b)
 
-def solve_mu(h1e,g2e,norb,nelec,beta,mu0=0.0,symm='UHF',bmax=1e3, \
+def solve_mu(h1e, g2e, norb, nelec, beta, mu0=0.0, symm='UHF', bmax=1e3, \
                 dcompl=False,**kwargs):
 
     '''
@@ -296,10 +295,10 @@ def solve_mu(h1e,g2e,norb,nelec,beta,mu0=0.0,symm='UHF',bmax=1e3, \
 
     mu_n = res.x[0]
     print("Converged mu for ED solver: mu(ED) = %10.12f"%mu_n)
+    return mu_n
 
-    return res.x[0]
 
-def diagH(h1e,g2e,norb,nelec,fcisolver):
+def diagH(h1e, g2e, norb, nelec, fcisolver):
     '''
         exactly diagonalize the hamiltonian.
     '''
@@ -322,11 +321,10 @@ def diagH(h1e,g2e,norb,nelec,fcisolver):
     for i in range(ndim):
         hc = hop(eyemat[i])
         Hmat.append(hc)
-
-
     Hmat = np.asarray(Hmat).T
     ew, ev = nl.eigh(Hmat)
     return ew, ev
+
 
 ######################################################################
 def FD(h1e,norb,nelec,beta,mu,symm='RHF'):
